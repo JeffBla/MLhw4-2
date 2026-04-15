@@ -1,34 +1,39 @@
-import pickle
 import numpy as np
 
 
-def parse_int32(byte_list, start_i):
-    val = (byte_list[start_i] << 24) | (byte_list[start_i+1] << 16) \
-            | (byte_list[start_i+2] << 8) | byte_list[start_i+3]
-    return val
+def parse_int32(byte_list: bytes, start_i: int) -> int:
+    """Parse a big-endian int32 value from a byte sequence."""
+    return (
+        (byte_list[start_i] << 24)
+        | (byte_list[start_i + 1] << 16)
+        | (byte_list[start_i + 2] << 8)
+        | byte_list[start_i + 3]
+    )
 
 
-def parse_dataset(img_filepath, label_filepath):
-    with open(img_filepath, "br") as f:
-        img_raw = f.read()
+def parse_dataset(
+    img_filepath: str,
+    label_filepath: str,
+) -> tuple[int, int, int, np.ndarray, int, np.ndarray]:
+    """Load the MNIST-style dataset into NumPy arrays."""
+    with open(img_filepath, "rb") as file_obj:
+        img_raw = file_obj.read()
 
     num_img = parse_int32(img_raw, 4)
     n_r = parse_int32(img_raw, 8)
     n_c = parse_int32(img_raw, 12)
+    img_data = np.frombuffer(img_raw, dtype=np.uint8, offset=16)
+    imgs = img_data.reshape(num_img, n_r, n_c).copy()
 
-    img_idx = 16
-    imgs = []
-    for i in range(num_img):
-        start = img_idx + (i * n_r * n_c)
-        end = img_idx + ((i + 1) * n_r * n_c)
-        img = np.frombuffer(img_raw[start:end], dtype=np.uint8)\
-            .reshape(n_r,n_c)
-        imgs.append(img.copy())
-
-    with open(label_filepath, "br") as f:
-        label_raw = f.read()
+    with open(label_filepath, "rb") as file_obj:
+        label_raw = file_obj.read()
 
     num_label = parse_int32(label_raw, 4)
-    labels = label_raw[8:len(label_raw)]
+    labels = np.frombuffer(label_raw, dtype=np.uint8, offset=8).copy()
+
+    if num_img != num_label:
+        raise ValueError(
+            f"Image count {num_img} does not match label count {num_label}."
+        )
 
     return num_img, n_r, n_c, imgs, num_label, labels
